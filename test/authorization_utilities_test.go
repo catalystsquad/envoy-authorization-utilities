@@ -2,7 +2,7 @@ package test
 
 import (
 	"encoding/json"
-	internal "github.com/catalystsquad/envoy-authorization-utilities/pkg"
+	"github.com/catalystsquad/envoy-authorization-utilities/pkg"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -26,10 +26,30 @@ func TestAuthorizationSuite(t *testing.T) {
 	suite.Run(t, new(AuthorizationSuite))
 }
 
+func (s *AuthorizationSuite) TestConstructor() {
+	expectedHost := "test.com"
+	expectedIgnorePaths := []string{"/*"}
+	expectedIgnoreGraphqlOperations := []string{"myOperation"}
+	hosts := map[string]pkg.HostSettings{
+		expectedHost: {
+			IgnorePaths:             expectedIgnorePaths,
+			IgnoreGraphqlOperations: expectedIgnoreGraphqlOperations,
+		},
+	}
+	authUtils, err := pkg.NewAuthorizationUtils(hosts)
+	require.NoError(s.T(), err)
+	require.Len(s.T(), authUtils.Hosts, 1)
+	hostSettings := authUtils.Hosts["test.com"]
+	require.NotNil(s.T(), hostSettings)
+	require.Len(s.T(), hostSettings.IgnoreUrlPaths, 1)
+	require.Len(s.T(), hostSettings.IgnoreUrlPaths[0].Segments, 1)
+	require.Equal(s.T(), hostSettings.IgnoreGraphqlOperationsSet.Size(), 1)
+	require.True(s.T(), hostSettings.IgnoreGraphqlOperationsSet.Contains(expectedIgnoreGraphqlOperations[0]))
+}
 func (s *AuthorizationSuite) TestShouldIgnoreRequestNoHostMatched() {
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"]}}}`)
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request with path that would match the ignorePaths, but on a different host
@@ -49,7 +69,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestNoHostMatched() {
 func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedIgnorePathsMatched() {
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"]}}}`)
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths
@@ -69,7 +89,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedIgnorePathsMatche
 func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedIgnorePathsNotMatched() {
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"]}}}`)
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths
@@ -90,7 +110,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedGraphqlMatchedStr
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"], "ignoreGraphqlOperations": ["doThing"]}}}`)
 	body := "{\n  \"operationName\": \"DoThing\",\n  \"variables\": {},\n  \"query\": \"query DoThing {\\n  doThing {\\n    result {\\n      name\\n      place\\n}\\n}\\n}\"\n}"
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths
@@ -112,7 +132,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedGraphqlMatchedByt
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"], "ignoreGraphqlOperations": ["doThing"]}}}`)
 	body := "{\n  \"operationName\": \"DoThing\",\n  \"variables\": {},\n  \"query\": \"query DoThing {\\n  doThing {\\n    result {\\n      name\\n      place\\n}\\n}\\n}\"\n}"
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths
@@ -134,7 +154,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedGraphqlNotMatched
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"], "ignoreGraphqlOperations": ["doAnotherThing"]}}}`)
 	body := "{\n  \"operationName\": \"DoThing\",\n  \"variables\": {},\n  \"query\": \"query DoThing {\\n  doThing {\\n    result {\\n      name\\n      place\\n}\\n}\\n}\"\n}"
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths
@@ -156,7 +176,7 @@ func (s *AuthorizationSuite) TestShouldIgnoreRequestHostMatchedGraphqlNotMatched
 	// set configuration
 	settingsJson := []byte(`{"hostSettings": {"test.com": {"ignorePaths": ["/some/path/here/*"], "ignoreGraphqlOperations": ["doAnotherThing"]}}}`)
 	body := "{\n  \"operationName\": \"DoThing\",\n  \"variables\": {},\n  \"query\": \"query DoThing {\\n  doThing {\\n    result {\\n      name\\n      place\\n}\\n}\\n}\"\n}"
-	var authUtils internal.AuthorizationUtils
+	var authUtils pkg.AuthorizationUtils
 	err := json.Unmarshal(settingsJson, &authUtils)
 	require.NoError(s.T(), err)
 	// create request that should be skipped based on matching ignore paths

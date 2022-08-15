@@ -1,7 +1,8 @@
-package internal
+package pkg
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/emirpasic/gods/sets/hashset"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/tidwall/gjson"
@@ -14,9 +15,21 @@ type AuthorizationUtils struct {
 }
 
 type HostSettings struct {
-	IgnorePathStrings       []string       `json:"IgnorePaths"`
-	IgnorePaths             []urlpath.Path `json:"-"`
-	IgnoreGraphqlOperations *hashset.Set   `json:"ignoreGraphqlOperations"`
+	IgnorePaths                []string       `json:"ignorePaths"`
+	IgnoreUrlPaths             []urlpath.Path `json:"-"`
+	IgnoreGraphqlOperations    []string       `json:"ignoreGraphqlOperations"`
+	IgnoreGraphqlOperationsSet *hashset.Set   `json:"-"`
+}
+
+func NewAuthorizationUtils(hosts map[string]HostSettings) (*AuthorizationUtils, error) {
+	var authUtils AuthorizationUtils
+	hostsJson, err := json.Marshal(hosts)
+	if err != nil {
+		return nil, err
+	}
+	authUtilsJson := []byte(fmt.Sprintf(`{"hostSettings": %s}`, string(hostsJson)))
+	err = json.Unmarshal(authUtilsJson, &authUtils)
+	return &authUtils, err
 }
 
 func (a *AuthorizationUtils) ShouldIgnoreRequest(request *v3.CheckRequest) bool {
@@ -33,7 +46,7 @@ func (a *AuthorizationUtils) ShouldIgnoreRequest(request *v3.CheckRequest) bool 
 func (h *HostSettings) shouldIgnoreRequest(request *v3.CheckRequest) bool {
 	requestPath := getPathFromRequest(request)
 	// check paths first
-	for _, path := range h.IgnorePaths {
+	for _, path := range h.IgnoreUrlPaths {
 		_, match := path.Match(requestPath)
 		if match {
 			// path matches an ignored path, return true
@@ -48,7 +61,7 @@ func (h *HostSettings) shouldIgnoreRequest(request *v3.CheckRequest) bool {
 		return false
 	}
 	// if the host's configuration contains the operation, return true to ignore the request
-	return h.IgnoreGraphqlOperations.Contains(operationName)
+	return h.IgnoreGraphqlOperationsSet.Contains(operationName)
 }
 
 func getGraphqlOperationFromBody(body string) string {
@@ -116,11 +129,15 @@ func (h *HostSettings) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	if len(h.IgnorePathStrings) > 0 {
-		h.IgnorePaths = []urlpath.Path{}
-		for _, pathString := range h.IgnorePathStrings {
-			h.IgnorePaths = append(h.IgnorePaths, urlpath.New(pathString))
+	if len(h.IgnorePaths) > 0 {
+		h.IgnoreUrlPaths = []urlpath.Path{}
+		for _, pathString := range h.IgnorePaths {
+			h.IgnoreUrlPaths = append(h.IgnoreUrlPaths, urlpath.New(pathString))
 		}
+	}
+	h.IgnoreGraphqlOperationsSet = hashset.New()
+	for _, operation := range h.IgnoreGraphqlOperations {
+		h.IgnoreGraphqlOperationsSet.Add(operation)
 	}
 	return nil
 }
