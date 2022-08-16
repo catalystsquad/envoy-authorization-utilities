@@ -52,7 +52,7 @@ func (h *HostSettings) shouldIgnoreRequest(request *v3.CheckRequest) bool {
 		return true
 	}
 	requestPath := getPathFromRequest(request)
-	// check paths first
+	// check paths
 	for _, path := range h.IgnoreUrlPaths {
 		_, match := path.Match(requestPath)
 		if match {
