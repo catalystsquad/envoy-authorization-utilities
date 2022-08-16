@@ -7,6 +7,7 @@ import (
 	v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/tidwall/gjson"
 	"github.com/ucarion/urlpath"
+	"net/http"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ type AuthorizationUtils struct {
 }
 
 type HostSettings struct {
+	AllowOptionsRequests       bool           `json:"allowOptionsRequests"`
 	IgnorePaths                []string       `json:"ignorePaths"`
 	IgnoreUrlPaths             []urlpath.Path `json:"-"`
 	IgnoreGraphqlOperations    []string       `json:"ignoreGraphqlOperations"`
@@ -44,6 +46,11 @@ func (a *AuthorizationUtils) ShouldIgnoreRequest(request *v3.CheckRequest) bool 
 }
 
 func (h *HostSettings) shouldIgnoreRequest(request *v3.CheckRequest) bool {
+	requestMethod := getMethodFromRequest(request)
+	// check options first
+	if h.AllowOptionsRequests && requestMethod == http.MethodOptions {
+		return true
+	}
 	requestPath := getPathFromRequest(request)
 	// check paths first
 	for _, path := range h.IgnoreUrlPaths {
@@ -100,6 +107,10 @@ func removeSpaces(theString string) string {
 
 func getPathFromRequest(request *v3.CheckRequest) string {
 	return request.Attributes.Request.Http.Path
+}
+
+func getMethodFromRequest(request *v3.CheckRequest) string {
+	return request.Attributes.Request.Http.Method
 }
 
 func getBodyFromRequest(request *v3.CheckRequest) string {
